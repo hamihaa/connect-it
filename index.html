@@ -1,0 +1,405 @@
+<html>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+        .column {
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .row {
+            display: flex;
+            flex-direction: row;
+        }
+
+        .single-slot {
+            font-size: 25px;
+            padding: 20px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid white;
+            color: white;
+            -webkit-touch-callout: none; /* iOS Safari */
+            -webkit-user-select: none; /* Safari */
+            -khtml-user-select: none; /* Konqueror HTML */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; 
+        }
+
+        .active-slot:hover {
+            background:red;
+        }
+
+        .num-1 {
+            background: #795548a3;
+        }
+
+        .num-2 {
+            background: lightblue;
+        }
+
+        .num-3 {
+            background: #4caf50;
+        }
+
+        .num-4 {
+            background: #ad96d5;
+        }
+
+        .num-5 {
+            background: pink;
+        }
+
+        .num-6 {
+            background: #af9e4c57;
+        }
+
+        .num-7 {
+            background: #ffeb3b70;
+        }
+
+        .num-8 {
+            background: #f44336ba;
+        }
+
+        .num-9 {
+            background: #99ffaf52;
+        }
+
+        button {
+            background: transparent;
+            width: 72px;
+        }
+
+        .button-row {
+            padding-left: 70px;
+        }
+
+        .flip-list-move {
+            transition: transform 0.5s;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div>
+            <input type="range" v-model="gridSize" step=1 min=2 max=9 list="tickmarsk">
+            <label for="volume">grid size: <span v-text="gridSize"></span></label>
+            <br />
+            <label for="timer">round length (seconds):</label>
+            <input type="number" name="timer" v-model="timerInput" min="10" max="300" />
+            <br />
+            <button @click="newGame()">new game</button>
+            <button @click="resetGame()">reset game</button>
+            <p>Move count: <span v-text="moveCount" /></p>
+            <p>Score: <span v-text="score" /></p>
+            <p>Highscore: <span v-text="highScore" /></p>
+            <!-- <p>first x <span v-text="firstX" /></p>
+            <p>first Y <span v-text="firstY" /></p>
+            <p>last x <span v-text="lastX" /></p>
+            <p>last Y <span v-text="lastY" /></p>
+            <p>sideX<span v-text="sideX" /></p>
+            <p>diffX<span v-text="diffX" /></p>
+            <p>sideY<span v-text="sideY" /></p>
+            <p>diffY<span v-text="diffY" /></p> -->
+            <p v-if="inGame" v-text="timer"></p>
+
+            <div class="win" v-if="showWinMsg">
+                <p>Time expired. You reached a score of {{ lastScore }}!
+                    <span v-if="lastScore==highScore"> New highscore!</span>
+                </p>
+            </div>
+            <div class="column">
+                <div class="button-row">
+                    <button v-if="inGame" v-for="(row, index) in set1" @click="goUp(index)">up</button>
+                </div>
+                <div class="row" v-for="(row, indexY) in set1">
+                    <button v-if="inGame" @click="goLeft(set1[indexY])">
+                        Left
+                    </button>
+                    <div class="single-slot" v-for="(number, indexX) in row" :class="classDef(number)" @touchend="cancelSlide"
+                        @mouseup="cancelSlide" @touchleave="stopSlide($event, indexY)" @mouseleave="stopSlide($event, indexY)"
+                        @touchstart="startSlide($event, indexX, indexY)" @mousedown="startSlide($event, indexX, indexY)">
+                        {{ getEmoji(number) }}
+                    </div>
+                    <button v-if="inGame" @click="goRight(set1[indexY])">
+                        Right
+                    </button>
+                </div>
+                <div class="button-row">
+                    <button v-if="inGame" v-for="(row, index) in set1" @click="goDown(index)">down</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.21/vue.js"></script>
+<script>
+
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                isUpdating: false,
+                gridSize: 4,
+                lastCount: 0,
+                lastScore: 0,
+                highScore: 0,
+                score: 0,
+                timerInput: 60,
+                inGame: false,
+                moveCount: 0,
+                interval: null,
+                showWinMsg: false,
+                timeUp: false,
+                isDown: false,
+                firstX: null,
+                lastX: null,
+                firstY: null,
+                lastY: null,
+                sideX: null,
+                sideY: null,
+                diffX: null,
+                diffY: null,
+                indexX: null,
+                indexY: null,
+                timer: 0,
+                set1: [
+                    [1, 3, 2, 4],
+                    [4, 1, 2, 3],
+                    [2, 3, 4, 1],
+                    [3, 2, 4, 1],
+                ],
+            }
+        },
+        created() {
+            this.set1.sort(function () { return 0.5 - Math.random() });
+        },
+        watch: {
+            gridSize(newVal, oldVal) {
+                if (newVal !== oldVal) {
+                    this.resetGame();
+                    console.log(newVal);
+                    this.set1 = [];
+                    for (var i = 1; i <= newVal; i++) {
+                        this.set1.push(Array.from({ length: newVal }, (v, k) => k + 1))
+                    }
+                    this.shuffleDeck();
+                }
+            },
+            set1(newVal, oldVal) {
+                if (this.isUpdating) {
+                    return;
+                }
+                if (this.inGame) {
+                    this.moveCount++;
+                    console.log('-----');
+                    console.log(newVal);
+
+                    // check if a row is connected
+                    newVal.map((row, i) => {
+                        if ((new Set(row)).size == 1) {
+                            this.score++;
+                            this.clearRow(i); // remove the matched row
+                            this.unshiftNewRow(); // add new row on top of playing set
+                        }
+                    })
+
+                    // check if column is connected
+                    for (var i = 0; i < this.gridSize; i++) {
+                        var newArray = this.set1.map(row => row[i]);
+                        if ((new Set(newArray)).size == 1) {
+                            this.score++;
+                            this.isUpdating = true;
+                            this.replaceColumnWithNewRandomValues(i); // remove the matched column
+                            this.isUpdating = false;
+
+                            // this.finishGame();
+                        }
+                    }
+                }
+            }
+        },
+        computed: {
+            roundLength() {
+                return this.timerInput * 1000;
+            }
+        },
+        methods: {
+            cancelSlide() {
+                if (this.isDown == true) {
+                    this.isDown = false;
+                }
+            },
+            startSlide(e, indexX, indexY) {
+                this.isDown = true;
+                this.firstX = e.pageX;
+                this.firstY = e.pageY;
+                this.indexX = indexX;
+                this.indexY = indexY;
+                console.log(this.indexX, this.indexY);
+            },
+            stopSlide(e, indexY) {
+                if (this.isDown) {
+                    this.isDown = false;
+                    this.lastX = e.pageX;
+                    this.lastY = e.pageY;
+
+                    this.diffX = Math.abs(this.lastX - this.firstX);
+                    if (this.lastX > this.firstX) {
+                        this.sideX = 'right';
+                    } else {
+                        this.sideX = 'left';
+                    }
+
+                    this.diffY = Math.abs(this.lastY - this.firstY);
+
+                    if (this.lastY > this.firstY) {
+                        this.sideY = 'down';
+                    } else {
+                        this.sideY = 'up';
+                    }
+
+                    if (this.diffX > this.diffY) {
+                        if (this.sideX == 'right') {
+                            this.goRight(this.set1[this.indexY]);
+                        } else {
+                            this.goLeft(this.set1[this.indexY]);
+                        }
+                    } else {
+                        if (this.sideY == 'up') {
+                            this.goUp(this.indexX);
+
+                        } else {
+                            this.goDown(this.indexX);
+                        }
+                    }
+                }
+            },
+            // add new row to top of playgrid (0 index)
+            unshiftNewRow() {
+                this.set1.unshift(Array.from({ length: this.gridSize }, (v, k) => k + 1).sort(function () { return 0.5 - Math.random() }))
+            },
+            // remove the nth row
+            clearRow(index) {
+                this.set1.splice(index, 1);
+            },
+            // after column is solved, replace column on index with new random values
+            replaceColumnWithNewRandomValues(column) {
+                var orgLen = this.set1.length;
+                this.set1.map(col => col[column] = Math.round(Math.random() * (orgLen - 1) + 1));
+            },
+            // emoji dict
+            getEmoji(number) {
+                switch (number) {
+                    case 1:
+                        return '🍩';
+                    case 2:
+                        return '🍣';
+                    case 3:
+                        return '🍓';
+                    case 4:
+                        return '🍕';
+                    case 5:
+                        return '🚀';
+                    case 6:
+                        return '🚗';
+                    case 7:
+                        return '🍦';
+                    case 8:
+                        return '⛄';
+                    case 9:
+                        return '😺';
+                }
+            },
+            classDef(number) {
+                return 'num-' + number;
+            },
+            // stop the current game and shuffle deck
+            resetGame() {
+                clearInterval(this.interval);
+                this.moveCount = 0;
+                this.score = 0;
+                this.inGame = false;
+                this.showWinMsg = false;
+                this.shuffleDeck();
+            },
+            // start new game - first reset, clear intervals,
+            newGame() {
+                this.resetGame();
+                this.timeUp = false;
+                this.inGame = true;
+                // set and start the countdown timer
+                this.timer = this.roundLength / 1000;
+                this.interval = setInterval(() => {
+                    console.log(this.timer);
+                    this.timer--;
+                }, 1000);
+
+                // when timer runs out, finish game
+                setTimeout(() => {
+                    if (this.timer == 0) {
+                        this.finishGame();
+                        this.timeUp = true;
+                    }
+                }, this.roundLength);
+            },
+            finishGame() {
+                console.log('gg');
+                clearInterval(this.interval);
+                if (this.score > this.highScore) {
+                    this.highScore = this.score;
+                }
+                this.inGame = false;
+                this.lastScore = this.score;
+                this.score = 0;
+                this.moveCount = 0;
+                this.showWinMsg = true;
+                this.timer = this.roundLength / 1000;
+            },
+            // shuffle game deck
+            shuffleDeck() {
+                var numberOfSpins = Math.round(Math.random() * 10) + 10;
+                for (var i = 0; i <= numberOfSpins; i++) {
+                    var index1 = Math.round(Math.random() * (this.set1.length - 1));
+                    this.goUp(index1);
+                    var index2 = Math.round(Math.random() * (this.set1.length - 1));
+                    this.goRight(this.set1[index2]);
+                }
+            },
+            goUp(index) {
+                // new, already shifted array
+                var newArray = this.set1.map(row => row[index]);
+                newArray.push(newArray.shift());
+                this.set1.map((item, i) => Vue.set(this.set1[i], index, newArray[i]));
+            },
+            goDown(index) {
+                // new, already shifted array
+                var newArray = this.set1.map(row => row[index]);
+                newArray.unshift(newArray.pop());
+                this.set1.map((item, i) => Vue.set(this.set1[i], index, newArray[i]));
+            },
+
+            goLeft(array) {
+                array.push(array.shift());
+            },
+            goRight(array) {
+                array.unshift(array.pop());
+            }
+        }
+    });
+</script>
